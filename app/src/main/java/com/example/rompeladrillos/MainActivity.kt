@@ -1,15 +1,12 @@
 package com.example.rompeladrillos
 
 import android.media.MediaPlayer
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
-import android.opengl.Visibility
 import android.os.Bundle
 import android.os.Looper
 import android.os.Handler
 import android.view.MotionEvent
 import android.view.View
-import android.view.animation.LinearInterpolator
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -63,6 +60,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Reanuda el audio si estaba pausado
+        audioThread?.resumeAudio()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Pausa el audio cuando la actividad no está en primer plano
+        audioThread?.pauseAudio()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // Detiene el hilo cuando la actividad se destruye
@@ -72,6 +81,7 @@ class MainActivity : ComponentActivity() {
     // Clase para el hilo en segundo plano que reproduce el audio
     inner class AudioThread : Thread() {
         private var mediaPlayer: MediaPlayer? = null
+        @Volatile private var isPaused = false
 
         override fun run() {
             // Inicializa el MediaPlayer con la pista de audio deseada
@@ -80,16 +90,40 @@ class MainActivity : ComponentActivity() {
             // Configura el MediaPlayer para reproducir la pista de audio de manera indefinida
             mediaPlayer?.isLooping = true
 
-            // Inicia la reproducción en un bucle infinito
+            mediaPlayer?.start()
             while (!Thread.currentThread().isInterrupted) {
-                mediaPlayer?.start()
+                synchronized(this) {
+                    while (isPaused) {
+                        (this as java.lang.Object).wait()
+                    }
+                }
+                mediaPlayer?.let {
+                    if (!it.isPlaying) {
+                        it.start()
+                    }
+                }
             }
+        }
+
+        // Método para pausar la reproducción de audio
+        @Synchronized
+        fun pauseAudio() {
+            mediaPlayer?.pause()
+            isPaused = true
+        }
+
+        // Método para reanudar la reproducción de audio
+        @Synchronized
+        fun resumeAudio() {
+            isPaused = false
+            (this as java.lang.Object).notify()
         }
 
         // Método para detener la reproducción de audio y liberar recursos
         fun stopAudio() {
             mediaPlayer?.release()
             mediaPlayer = null
+            interrupt()
         }
     }
 
@@ -111,7 +145,6 @@ class MainActivity : ComponentActivity() {
                 brick.layoutParams = brickParams
                 brick.setBackgroundResource(R.drawable.ic_launcher_background)
                 rowLayout.addView(brick)
-
             }
             brickContainer.addView(rowLayout)
         }
@@ -198,7 +231,6 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this, "$lives balls left ", Toast.LENGTH_SHORT).show()
             }
 
-
             paddle.setOnTouchListener { _, event ->
                 when (event.action) {
                     MotionEvent.ACTION_MOVE -> {
@@ -215,10 +247,8 @@ class MainActivity : ComponentActivity() {
                 // Reset the ball to its initial position
                 resetBallPosition()
                 start()
-
             }
         }
-
     }
 
     private fun resetBallPosition() {
@@ -230,7 +260,7 @@ class MainActivity : ComponentActivity() {
         val screenHeight = displayMetrics.heightPixels.toFloat()
 
         ballX = screenWidth / 2 - ball.width / 2
-        ballY = screenHeight / 2 - ball.height / 2 +525
+        ballY = screenHeight / 2 - ball.height / 2 + 525
 
         ball.x = ballX
         ball.y = ballY
@@ -239,15 +269,11 @@ class MainActivity : ComponentActivity() {
         ballSpeedX = 0 * screenDensity
         ballSpeedY = 0 * screenDensity
 
-
-
         paddleX = screenWidth / 2 - paddle.width / 2
         paddle.x = paddleX
 
-
         // Implement any additional logic you need, such as reducing lives or showing a message
         // when the ball goes past the paddle.
-
     }
 
     private fun gameOver() {
@@ -255,16 +281,13 @@ class MainActivity : ComponentActivity() {
         scoreText.text = "Game Over"
         score = 0
         val newgame = findViewById<Button>(R.id.newgame)
-
         newgame.visibility = View.VISIBLE
 
         // Reset any other game-related properties as needed
     }
 
-
     @SuppressLint("ClickableViewAccessibility")
     private fun movepaddle() {
-
         paddle.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_MOVE -> {
@@ -289,20 +312,10 @@ class MainActivity : ComponentActivity() {
         ballX = screenWidth / 2 - ball.width / 2
         ballY = screenHeight / 2 - ball.height / 2
 
-        val brickHeightWithMargin = (brickHeight
-                + brickMargin * screenDensity).toInt()
+        val brickHeightWithMargin = (brickHeight + brickMargin * screenDensity).toInt()
 
         ballSpeedX = 3 * screenDensity
         ballSpeedY = -3 * screenDensity
-
-//        val animator = ValueAnimator.ofFloat(0f, 1f)
-//        animator.duration = Long.MAX_VALUE
-//        animator.interpolator = LinearInterpolator()
-//        animator.addUpdateListener { animation ->
-//            moveBall()
-//            checkCollision()
-//        }
-//        animator.start()
 
         handler.post(object : Runnable {
             override fun run() {
