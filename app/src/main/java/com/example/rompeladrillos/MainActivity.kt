@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var paddle: View
     private lateinit var ball: View
     private lateinit var brickContainer: LinearLayout
+    private lateinit var victoryText: TextView
 
     private var ballX = 0f
     private var ballY = 0f
@@ -37,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private var lives = 3
 
     private val handler = Handler(Looper.getMainLooper())
+    private var gameRunnable: Runnable? = null
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,11 +53,12 @@ class MainActivity : ComponentActivity() {
         paddle = findViewById(R.id.paddle)
         ball = findViewById(R.id.ball)
         brickContainer = findViewById(R.id.brickContainer)
+        victoryText = findViewById(R.id.victoryText)
 
         val newgame = findViewById<Button>(R.id.newgame)
         newgame.setOnClickListener {
-            initializeBricks()
-            start()
+            resetGame()
+            startGame()
             newgame.visibility = View.INVISIBLE
         }
     }
@@ -186,14 +189,8 @@ class MainActivity : ComponentActivity() {
             scoreText.text = "Score: $score"
         }
 
-        // Check collision with bottom wall (paddle misses the ball)
-        if (ballY + ball.height >= screenHeight) {
-            // Game logic for when the ball goes past the paddle
-            // You can implement actions such as reducing lives, resetting the ball, or displaying a message
-            resetBallPosition() // Example: Reset the ball to its initial position
-        }
-
         // Check collision with bricks
+        var allBricksInvisible = true
         for (row in 0 until brickRows) {
             val rowLayout = brickContainer.getChildAt(row) as LinearLayout
 
@@ -204,6 +201,7 @@ class MainActivity : ComponentActivity() {
                 val brick = rowLayout.getChildAt(col) as View
 
                 if (brick.visibility == View.VISIBLE) {
+                    allBricksInvisible = false
                     val brickLeft = brick.x + rowLayout.x
                     val brickRight = brickLeft + brick.width
                     val brickTop = brick.y + rowTop
@@ -222,31 +220,23 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Check if all bricks are invisible
+        if (allBricksInvisible) {
+            showVictory()
+        }
+
         // Check collision with bottom wall (paddle misses the ball)
-        if (ballY + ball.height >= screenHeight - 100) {
+        if (ballY + ball.height >= screenHeight) {
             // Reduce the number of lives
             lives--
 
             if (lives > 0 ) {
                 Toast.makeText(this, "$lives balls left ", Toast.LENGTH_SHORT).show()
-            }
-
-            paddle.setOnTouchListener { _, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_MOVE -> {
-                        movePaddle(event.rawX)
-                    }
-                }
-                true
-            }
-
-            if (lives <= 0) {
-                // Game over condition: No more lives left
-                gameOver()
-            } else {
                 // Reset the ball to its initial position
                 resetBallPosition()
-                start()
+            } else {
+                // Game over condition: No more lives left
+                gameOver()
             }
         }
     }
@@ -283,7 +273,21 @@ class MainActivity : ComponentActivity() {
         val newgame = findViewById<Button>(R.id.newgame)
         newgame.visibility = View.VISIBLE
 
-        // Reset any other game-related properties as needed
+        // Stop the game loop
+        handler.removeCallbacks(gameRunnable!!)
+    }
+
+    private fun showVictory() {
+        victoryText.visibility = View.VISIBLE
+        victoryText.text = "You Win!"
+
+        // Detener la pelota y la raqueta
+        ballSpeedX = 0f
+        ballSpeedY = 0f
+        handler.removeCallbacks(gameRunnable!!)
+
+        val newgame = findViewById<Button>(R.id.newgame)
+        newgame.visibility = View.VISIBLE
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -298,7 +302,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun start() {
+    private fun startGame() {
         movepaddle()
         val displayMetrics = resources.displayMetrics
         val screenDensity = displayMetrics.density
@@ -312,18 +316,27 @@ class MainActivity : ComponentActivity() {
         ballX = screenWidth / 2 - ball.width / 2
         ballY = screenHeight / 2 - ball.height / 2
 
-        val brickHeightWithMargin = (brickHeight + brickMargin * screenDensity).toInt()
-
         ballSpeedX = 3 * screenDensity
         ballSpeedY = -3 * screenDensity
 
-        handler.post(object : Runnable {
+        gameRunnable = object : Runnable {
             override fun run() {
                 moveBall()
                 checkCollision()
-                movepaddle()
                 handler.postDelayed(this, 10) // Delay 10 milliseconds before running again
             }
-        })
+        }
+        handler.post(gameRunnable!!)
+    }
+
+    private fun resetGame() {
+        lives = 3
+        score = 0
+        scoreText.text = "Score: $score"
+        victoryText.visibility = View.INVISIBLE
+
+        // Clear the brick container to avoid duplication
+        brickContainer.removeAllViews()
+        initializeBricks()
     }
 }
