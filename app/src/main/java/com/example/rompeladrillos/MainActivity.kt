@@ -24,8 +24,8 @@ class MainActivity : ComponentActivity() {
 
     private var ballX = 0f
     private var ballY = 0f
-    private var ballSpeedX = 0f
-    private var ballSpeedY = 0f
+    private var ballSpeedX = 3f
+    private var ballSpeedY = -3f
     private var paddleX = 0f
     private var score = 0
     private val brickRows = 9
@@ -265,9 +265,9 @@ class MainActivity : ComponentActivity() {
         ball.x = ballX
         ball.y = ballY
 
-        // Reset the ball's speed
-        ballSpeedX = 0 * screenDensity
-        ballSpeedY = 0 * screenDensity
+        // Reset the ball's speed to constant values
+        ballSpeedX = 3 * screenDensity
+        ballSpeedY = -3 * screenDensity
 
         paddleX = screenWidth / 2 - paddle.width / 2
         paddle.x = paddleX
